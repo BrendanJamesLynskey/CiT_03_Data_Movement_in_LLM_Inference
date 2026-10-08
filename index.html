@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compute in Transit 03 — Data Movement in LLM Inference</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=Geist+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1c1815;
+            --bg-card: #231e1a;
+            --bg-code: #2b2520;
+            --text-primary: #efe8dc;
+            --text-secondary: #a2978b;
+            --accent: #6cb6c4;
+            --accent-dim: #6cb6c444;
+            --accent-glow: #6cb6c433;
+            --border: #3a322b;
+            --font-display: 'Bricolage Grotesque', sans-serif;
+            --font-mono: 'Geist Mono', 'Geist Mono', monospace;
+            --font-body: 'Instrument Sans', sans-serif;
+            --max-width: 900px;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 17px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .hero > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .series-label {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+
+        .hero h1 .accent {
+            color: var(--accent);
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 2rem;
+        }
+
+        /* ── Tag Pills ── */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+            white-space: nowrap;
+        }
+
+        /* ── Pipeline Flow Bar ── */
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            max-width: var(--max-width);
+        }
+
+        .pipeline-step {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .pipeline-arrow {
+            color: var(--accent);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        /* ── Slides ── */
+        .slide {
+            min-height: 100vh;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-dim);
+            position: absolute;
+            top: 2rem;
+            right: 1.5rem;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .slide h2 {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            line-height: 1.25;
+        }
+
+        .slide h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .slide p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .slide p strong {
+            color: var(--text-primary);
+        }
+
+        .slide ul, .slide ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .slide li {
+            margin-bottom: 0.4rem;
+        }
+
+        .slide li strong {
+            color: var(--text-primary);
+        }
+
+        /* ── Code Blocks ── */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.25rem 0;
+            overflow: hidden;
+        }
+
+        .code-header {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(108,182,196,0.08);
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #dad1c5;
+        }
+
+        /* Syntax highlighting (manual) */
+        .kw { color: #de805a; }
+        .fn { color: #d7bbdf; }
+        .str { color: #bcdbd4; }
+        .cm { color: #a2978b; font-style: italic; }
+        .num { color: #97cdc6; }
+        .type { color: #e3b174; }
+        .dir { color: #de805a; }
+        .mac { color: #e3b174; }
+
+        /* ── Tables ── */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: var(--bg-code);
+            color: var(--accent);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(35,30,26,0.5);
+        }
+
+        /* ── Diagrams ── */
+        .diagram-flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-box {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .diagram-box.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(108,182,196,0.08);
+        }
+
+        .diagram-box.dim {
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+
+        .diagram-arrow {
+            color: var(--accent);
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        /* Vertical flow diagrams */
+        .diagram-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-vertical .diagram-arrow {
+            font-size: 1.1rem;
+        }
+
+        /* Nested hierarchy diagram */
+        .hierarchy {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .hierarchy-level {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .hierarchy-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .hierarchy-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .hierarchy-item {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .hierarchy-item.accent {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(108,182,196,0.08);
+        }
+
+        /* Grid diagram */
+        .diagram-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .diagram-grid.cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .diagram-grid.cols-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .diagram-panel {
+            padding: 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .diagram-panel.accent-border {
+            border-left: 3px solid var(--accent);
+        }
+
+        .diagram-panel h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .diagram-panel p, .diagram-panel ul {
+            font-size: 0.85rem;
+        }
+
+        /* ── Callout Boxes ── */
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+        }
+
+        .callout .callout-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        /* ── Tier Visual ── */
+        .tier-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .tier-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tier-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 90px;
+            text-align: right;
+        }
+
+        .tier-fill {
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding: 0 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            white-space: nowrap;
+            transition: width 0.6s ease;
+        }
+
+        .tier-cost {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            min-width: 70px;
+        }
+
+        /* ── Contents list ── */
+        .contents-list {
+            list-style: none;
+            padding-left: 0;
+            counter-reset: contents;
+        }
+
+        .contents-list li {
+            counter-increment: contents;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .contents-list li:last-child {
+            border-bottom: none;
+        }
+
+        .contents-list li::before {
+            content: counter(contents, decimal-leading-zero);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+
+        .contents-list a {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .contents-list a:hover {
+            color: var(--accent);
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .slide {
+                padding: 3rem 1rem;
+                min-height: auto;
+            }
+
+            .slide-number {
+                font-size: 3rem;
+                top: 1.5rem;
+                right: 1rem;
+            }
+
+            .slide h2 {
+                font-size: 1.5rem;
+            }
+
+            .diagram-grid.cols-2,
+            .diagram-grid.cols-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline {
+                gap: 0.15rem;
+            }
+
+            .pipeline-step {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.4rem;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            table {
+                font-size: 0.78rem;
+            }
+
+            .tier-label {
+                min-width: 60px;
+                font-size: 0.65rem;
+            }
+
+            .tier-fill {
+                font-size: 0.6rem;
+                height: 26px;
+            }
+        }
+
+        /* ── Interactive controls (added for Local LLM series) ── */
+        .control-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .control-row label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            min-width: 180px;
+        }
+        .control-row input[type="range"] {
+            flex: 1;
+            min-width: 160px;
+            accent-color: var(--accent);
+        }
+        .control-row input[type="number"],
+        .control-row select {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 0.3rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+        .control-row .val {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 80px;
+            text-align: right;
+        }
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.4rem 0.9rem;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .btn:hover { background: rgba(108,182,196,0.2); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.secondary {
+            background: var(--bg-code);
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        .result-box {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            margin-top: 0.75rem;
+        }
+        .result-box .line-label { color: var(--text-secondary); }
+        .result-box .line-val   { color: var(--accent); font-weight: 600; }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .metric {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+        }
+        .metric .metric-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .metric .metric-value {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        /* Canvas / SVG containers */
+        .canvas-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.25rem 0;
+            overflow-x: auto;
+        }
+        .canvas-wrap canvas,
+        .canvas-wrap svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+
+        /* Small inline badge */
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        .badge.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .badge.warn  { border-color: #e3b174; color: #e3b174; background: rgba(227,177,116,0.08); }
+        .badge.bad   { border-color: #de805a; color: #de805a; background: rgba(222,128,90,0.08); }
+
+
+        /* ── LLM Inference Simulators additions ── */
+        .canvas-wrap canvas { image-rendering: auto; display: block; width: 100%; height: auto; }
+        .canvas-wrap svg { max-width: 100%; height: auto; }
+        .ladder { display: grid; gap: 0.4rem; margin: 1.25rem 0; }
+        .ladder-row {
+            display: grid; grid-template-columns: 11rem 1fr 7.5rem; gap: 0.75rem; align-items: center;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+            padding: 0.55rem 0.85rem; font-size: 0.88rem;
+        }
+        .ladder-row .rung { font-family: var(--font-display); font-weight: 600; color: var(--accent); }
+        .ladder-row .speed { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); text-align: right; }
+        .res-list { list-style: none; padding: 0; margin: 0.75rem 0; }
+        .res-list li { padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+        .res-list li:last-child { border-bottom: none; }
+        .res-list .what { color: var(--text-secondary); display: block; font-size: 0.86rem; margin-top: 0.15rem; }
+        .res-list a { color: var(--accent); text-decoration: none; }
+        .res-list a:hover { text-decoration: underline; }
+        .qa { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin: 0.6rem 0; padding: 0.2rem 1rem; }
+        .qa summary { cursor: pointer; padding: 0.6rem 0; font-weight: 600; }
+        .qa p, .qa ul { margin-bottom: 0.75rem; font-size: 0.92rem; }
+        .sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.4rem 1.25rem; }
+        .chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+        .chart-title { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+        .slide a { color: var(--accent); }
+        @media (max-width: 640px) {
+            .ladder-row { grid-template-columns: 1fr; gap: 0.2rem; }
+            .ladder-row .speed { text-align: left; }
+        }
+        .concepts { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; padding: 0.75rem 1rem; margin-top: 1.25rem; font-size: 0.88rem; }
+        .concepts p { margin: 0 0 0.4rem; color: var(--text-secondary); }
+        .concepts .chips { display: flex; flex-wrap: wrap; gap: 0.35rem 0.5rem; }
+        .concepts .chips a { border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.6rem; text-decoration: none; font-size: 0.82rem; }
+        .concepts .chips a:hover { border-color: var(--accent); }
+        .hero { overflow: hidden; }   /* the 600px glow must not widen the page on phones */
+        .chart-pair > *, .diagram-grid > *, .sim-grid > * { min-width: 0; }   /* let wide code scroll inside its column */
+        .slide p code, .slide li code, .slide td code { overflow-wrap: anywhere; }
+        @media (max-width: 640px) { .diagram-box { white-space: normal; max-width: 100%; } }   /* long boxes must wrap on phones */
+        /* FOptInf: keep long titles clear of the slide number on phones */
+        @media (max-width: 640px) { .slide h2 { padding-right: 3.6rem; } }
+        .sim-grid select, .sim-grid input[type="range"] { max-width: 100%; min-width: 0; }   /* long option labels must not spill into the next column */
+    </style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="series-label">Compute in Transit &mdash; Presentation 03</div>
+    <h1>Data Movement in <span class="accent">LLM Inference</span></h1>
+    <p class="subtitle">What a serving system moves between GPUs, pools and storage: the KV hand-off, KV tiering and prefix fetch, query-aware selection, ring attention, MoE all-to-all, weight loading and encrypted traffic. How big each flow is, when it binds, and which of them a module with a few operations per byte could usefully work on.</p>
+
+    <div class="tags">
+        <span class="tag">KV hand-off</span>
+        <span class="tag">KV tiering</span>
+        <span class="tag">Query-aware selection</span>
+        <span class="tag">Ring attention</span>
+        <span class="tag">MoE all-to-all</span>
+        <span class="tag">Confidential AI</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">Prefill pool</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">KV hand-off</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Decode pool</span>
+        <span class="pipeline-arrow">&harr;</span>
+        <span class="pipeline-step">CPU / SSD KV tier</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Kernel on the link?</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">What Inference Moves</a></li>
+        <li><a href="#slide-02">How Big: KV Cache and Weights (Interactive)</a></li>
+        <li><a href="#slide-03">The KV Hand-off, and When It Binds</a></li>
+        <li><a href="#slide-04">Compressing the Hand-off</a></li>
+        <li><a href="#slide-05">KV Tiering and Prefix Caching</a></li>
+        <li><a href="#slide-06">Fetch Only What Matters: Query-Aware KV Selection</a></li>
+        <li><a href="#slide-07">Ring Attention and Context Parallelism</a></li>
+        <li><a href="#slide-08">MoE All-to-All and Tensor-Parallel All-Reduce</a></li>
+        <li><a href="#slide-09">Weight Streaming</a></li>
+        <li><a href="#slide-10">Confidential AI: FHE and Encrypted Links</a></li>
+        <li><a href="#slide-11">The Candidate Table</a></li>
+        <li><a href="#slide-12">What a Simulator Needs to Answer This</a></li>
+        <li><a href="#slide-13">What to Take Away</a></li>
+    </ul>
+    <div class="callout">
+        <div class="callout-label">Where this deck sits</div>
+        <p><a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">Deck 01</a> sets the budget and the five tests: a QSFP56 compute-in-transit module offers <strong>0.40 to 3.96 operations per byte</strong> at line rate, and the published operations are FFT, NTT, modular arithmetic and MAC (Optalysys, Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>, a QSFP56 pluggable with an integrated optical Fourier transform device, evaluated only on FHE CKKS bootstrapping). Comparisons, rounding and top-k are not in the published set. <a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">Deck 02</a> applied the tests to training. This deck applies them to inference.</p>
+    </div>
+    <div class="concepts">
+        <p><strong>Concepts used here, and where they are explained.</strong> Each is defined, with links, in the <a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary">series glossary</a>.</p>
+        <div class="chips"><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Moving a request's KV cache from the prefill pool that built it to the decode pool that uses it, in disaggregated serving.">KV hand-off</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Keeping KV caches in CPU memory, SSD or a shared pool when they do not fit or are worth reusing, and fetching them back.">KV tiering and prefix caching</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Operations a module can apply per byte at line rate: 0.40 to 3.96 on a QSFP56 link.">Operations per byte</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="FFT, NTT, modular arithmetic and MAC: the operations the 2026 module paper describes.">Published operation set</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Compressing along the token axis by keeping a fixed set of frequency components after a DCT or FFT.">Frequency keep-k</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Fetching only the KV pages whose summary scores high against the current query.">Query-aware KV selection</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Splitting a long sequence across devices and passing KV blocks round a ring while each device computes blockwise attention.">Ring attention</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Sending each token's activation to the GPUs holding its chosen experts, and the results back.">MoE all-to-all</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="Lattice-based post-quantum key encapsulation standardised as FIPS 203; its polynomial arithmetic uses NTTs.">ML-KEM</a><a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary" title="When the serving metric is limited by a link's bandwidth rather than by compute or memory.">Link-bound (transport-bound)</a></div>
+    </div>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>What Inference Moves</h2>
+    <p>Inference moves less data than training in any single transfer, but it moves it often and on the critical path of a request. Six flows are worth naming.</p>
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 760 260" width="760" height="260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A serving system: prefill pool hands KV to decode pool; both exchange KV with a CPU and SSD tier; weights load from storage; MoE all-to-all and ring attention run inside pools">
+            <style>
+                .bx { fill: #2b2520; stroke: #3a322b; stroke-width: 1.2; }
+                .bxa { fill: rgba(108,182,196,0.08); stroke: #6cb6c4; stroke-width: 1.4; }
+                .t  { fill: #efe8dc; font-family: 'Geist Mono', monospace; font-size: 12px; }
+                .d  { fill: #a2978b; font-family: 'Geist Mono', monospace; font-size: 10px; }
+                .m  { fill: #6cb6c4; font-family: 'Geist Mono', monospace; font-size: 10.5px; }
+                .w  { fill: #e3b174; font-family: 'Geist Mono', monospace; font-size: 10.5px; }
+                .ar { stroke: #6cb6c4; stroke-width: 2; fill: none; }
+                .ag { stroke: #e3b174; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+            </style>
+            <defs>
+                <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6cb6c4"/></marker>
+                <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e3b174"/></marker>
+            </defs>
+            <rect x="30" y="40" width="200" height="90" rx="8" class="bx"/>
+            <text x="50" y="65" class="t">Prefill pool</text>
+            <text x="50" y="85" class="d">ring attention (long prompts)</text>
+            <text x="50" y="100" class="d">MoE all-to-all, TP all-reduce</text>
+            <rect x="530" y="40" width="200" height="90" rx="8" class="bx"/>
+            <text x="550" y="65" class="t">Decode pool</text>
+            <text x="550" y="85" class="d">MoE all-to-all, TP all-reduce</text>
+            <text x="550" y="100" class="d">reads KV every step</text>
+            <line x1="232" y1="78" x2="526" y2="78" class="ar" marker-end="url(#ah)"/>
+            <text x="300" y="68" class="m">1. KV hand-off (once per request)</text>
+            <rect x="280" y="170" width="200" height="60" rx="8" class="bxa"/>
+            <text x="300" y="195" class="t">CPU / SSD KV tier</text>
+            <text x="300" y="214" class="d">prefix cache, offload</text>
+            <path d="M130 132 L130 200 L276 200" class="ar" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <path d="M630 132 L630 200 L484 200" class="ar" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <text x="140" y="160" class="m">2. fetch / offload</text>
+            <text x="520" y="160" class="m">2. fetch / offload</text>
+            <text x="300" y="250" class="m">3. selective fetch (score pages first)</text>
+            <rect x="290" y="5" width="180" height="26" rx="6" class="bx"/>
+            <text x="300" y="22" class="d">weights: storage / host</text>
+            <path d="M290 18 L130 18 L130 38" class="ag" marker-end="url(#ahg)"/>
+            <path d="M470 18 L630 18 L630 38" class="ag" marker-end="url(#ahg)"/>
+            <text x="170" y="12" class="w">4. weight load / swap</text>
+        </svg>
+    </div>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Traffic</th><th>When it moves</th><th>Typical link</th></tr>
+        <tr><td><strong>KV hand-off</strong>, prefill to decode</td><td>Once per request, after prefill (disaggregated serving: DistServe, Splitwise)</td><td>NVLink in a node; InfiniBand or Ethernet between nodes</td></tr>
+        <tr><td><strong>KV tiering</strong>, offload and prefix fetch</td><td>When a cached prefix is reused, or KV is evicted from GPU memory</td><td>PCIe to host memory; network to a shared CPU/SSD pool</td></tr>
+        <tr><td><strong>Context-parallel prefill</strong> (ring attention)</td><td>Every layer of a long-context prefill</td><td>NVLink or InfiniBand between the GPUs of one job</td></tr>
+        <tr><td><strong>MoE all-to-all</strong> (and TP all-reduce)</td><td>Every MoE layer (every layer for TP), prefill and decode</td><td>NVLink in a node, InfiniBand across nodes</td></tr>
+        <tr><td><strong>Weight loading and swapping</strong></td><td>Cold start, model swap, adapter swap</td><td>PCIe from host or local SSD; network from object storage</td></tr>
+        <tr><td><strong>Ciphertexts and encrypted traffic</strong></td><td>Confidential inference: FHE ciphertexts, or encrypted links</td><td>Whatever link carries the data</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.85rem;">Disaggregated serving: DistServe (<a href="https://arxiv.org/abs/2401.09670">arXiv:2401.09670</a>, OSDI 2024) and Splitwise (<a href="https://arxiv.org/abs/2311.18677">arXiv:2311.18677</a>, ISCA 2024). NVIDIA Dynamo's transfer library, NIXL, moves KV between prefill and decode workers and across GPU, CPU, SSD and object-storage tiers (<a href="https://docs.nvidia.com/dynamo/latest/_sections/architecture.html">Dynamo architecture</a>; <a href="https://github.com/ai-dynamo/nixl">ai-dynamo/nixl</a>).</p>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>How Big: KV Cache and Weights (Interactive)</h2>
+    <p>A KV cache grows linearly with the prompt. With grouped-query attention, Llama-3-8B stores <strong>131,072 bytes per token</strong> and Llama-3-70B <strong>327,680</strong> (BF16). The hand-off time is the link latency plus bytes over bandwidth:</p>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Model</th><th>Prompt</th><th>KV hand-off (MB)</th><th>NVLink 4 (ms)</th><th>IB NDR (ms)</th><th>100 GbE (ms)</th><th>25 GbE (ms)</th></tr>
+        <tr><td>Llama-3-8B</td><td>2,048</td><td>268.4</td><td>0.60</td><td>5.38</td><td>21.49</td><td>85.92</td></tr>
+        <tr><td>Llama-3-8B</td><td>32,768</td><td>4,295.0</td><td>9.55</td><td>85.91</td><td>343.62</td><td>1,374.41</td></tr>
+        <tr><td>Llama-3-70B</td><td>2,048</td><td>671.1</td><td>1.50</td><td>13.43</td><td>53.71</td><td>214.77</td></tr>
+        <tr><td>Llama-3-70B</td><td>32,768</td><td>10,737.4</td><td>23.87</td><td>214.76</td><td>859.01</td><td>3,435.99</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a>, section 4. BF16 weights: Llama-3-8B 16.06 GB, loaded over PCIe Gen5 x16 in 0.25 s; Llama-3-70B 141.10 GB in 2.20 s. For scale, one Llama-3-70B BF16 training update is 141.10 GB against 268.4 MB for a 2,048-token Llama-3-8B hand-off (section 6).</p>
+
+    <div class="control-panel">
+        <div class="sim-grid">
+            <div class="control-row"><label for="kv-model">Model</label><select id="kv-model"><option value="131072" selected>Llama-3-8B (131,072 B/token)</option><option value="327680">Llama-3-70B (327,680 B/token)</option></select></div>
+            <div class="control-row"><label for="kv-link">Link</label><select id="kv-link">
+                <option value="450|5">NVLink 4: 450 GB/s, 5 &micro;s</option>
+                <option value="50|10">IB NDR: 50 GB/s, 10 &micro;s</option>
+                <option value="12.5|20">100 GbE: 12.5 GB/s, 20 &micro;s</option>
+                <option value="3.125|20" selected>25 GbE: 3.125 GB/s, 20 &micro;s</option>
+            </select></div>
+            <div class="control-row"><label for="kv-len">Prompt tokens</label><input type="range" id="kv-len" min="9" max="17" step="1" value="11"><span class="val" id="kv-len-val">2,048</span></div>
+            <div class="control-row"><label for="kv-cr">Compression</label><select id="kv-cr">
+                <option value="1" selected>none (BF16), 1&times;</option>
+                <option value="2">FP8, or keep half the frequencies: 2&times;</option>
+                <option value="3.765">FP4 with block scales: 3.765&times;</option>
+                <option value="8">2-bit (KIVI-like): 8&times;</option>
+            </select></div>
+        </div>
+        <div class="metric-grid">
+            <div class="metric"><div class="metric-label">Hand-off size</div><div class="metric-value" id="kv-mb">&mdash;</div></div>
+            <div class="metric"><div class="metric-label">Transfer time</div><div class="metric-value" id="kv-ms">&mdash;</div></div>
+            <div class="metric"><div class="metric-label">Hand-offs/s to fill the link</div><div class="metric-value" id="kv-rate">&mdash;</div></div>
+        </div>
+        <div class="tier-visual" id="kv-bars" style="margin-bottom:0;"></div>
+        <p id="kv-note" style="font-size:0.85rem; margin-top:0.6rem; margin-bottom:0;"></p>
+    </div>
+    <script>
+    (function(){
+        const $ = id => document.getElementById(id);
+        const LINKS = [["NVLink 4", 450, 5], ["IB NDR", 50, 10], ["100 GbE", 12.5, 20], ["25 GbE", 3.125, 20]];
+        const fmt = (x, d) => x.toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
+        const ms = (bytes, gbps, us) => us / 1000 + bytes / (gbps * 1e9) * 1000;
+        const showMs = v => v >= 1000 ? fmt(v / 1000, 2) + ' s' : fmt(v, 2) + ' ms';
+        function update() {
+            const bpt = +$('kv-model').value, len = Math.pow(2, +$('kv-len').value), cr = +$('kv-cr').value;
+            const [gbps, us] = $('kv-link').value.split('|').map(Number);
+            const bytes = bpt * len / cr;
+            $('kv-len-val').textContent = fmt(len, 0);
+            $('kv-mb').textContent = bytes >= 1e9 ? fmt(bytes / 1e9, 2) + ' GB' : fmt(bytes / 1e6, 1) + ' MB';
+            $('kv-ms').textContent = showMs(ms(bytes, gbps, us));
+            $('kv-rate').textContent = fmt(gbps * 1e9 / bytes, 2);
+            const all = LINKS.map(([n, g, u]) => [n, ms(bytes, g, u)]);
+            const lo = Math.log10(0.001), hi = Math.log10(Math.max(10, all[3][1] * 1.2));
+            $('kv-bars').innerHTML = all.map(([n, v]) => {
+                const w = Math.max(4, 100 * (Math.log10(v) - lo) / (hi - lo));
+                const sel = gbps === LINKS.find(l => l[0] === n)[1];
+                return '<div class="tier-bar"><span class="tier-label">' + n + '</span><div style="flex:1;"><div class="tier-fill" style="width:' + w.toFixed(1) +
+                    '%; background:' + (sel ? 'var(--accent-dim)' : 'var(--bg-code)') + '; border:1px solid ' + (sel ? 'var(--accent)' : 'var(--border)') +
+                    '; color:' + (sel ? 'var(--accent)' : 'var(--text-secondary)') + ';">' + showMs(v) + '</div></div></div>';
+            }).join('');
+            $('kv-note').textContent = 'Bars on a log scale, same hand-off on each link. Transfer time = latency + bytes / bandwidth, one transfer on an idle link; queueing behind other hand-offs is what the simulator adds (slide 03). Compression ratios are the presets of Disaggregated_Inference_Sim (FP8, FP4 with block scales) and a 2-bit case for comparison; accuracy is not modelled.';
+        }
+        ['kv-model', 'kv-link', 'kv-len', 'kv-cr'].forEach(id => $(id).addEventListener('input', update));
+        update();
+    })();
+    </script>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>The KV Hand-off, and When It Binds</h2>
+    <p>A single transfer time says little; what matters is whether hand-offs queue. <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim">Disaggregated_Inference_Sim</a> runs a request trace through a prefill pool, a link and a decode pool (Llama-3-8B shape, one H100 per instance, 2,048-token prompts: a 268.4 MB GQA KV hand-off). Its coefficients are illustrative; read these as a simulator's results, not measurements.</p>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Link</th><th>KV wait + transfer share of E2E</th><th>Link busy</th><th>TPOT p99</th><th>SLO met</th></tr>
+        <tr><td>NVLink 4</td><td>0.0%</td><td>0.5%</td><td>8.8 ms</td><td>100.0%</td></tr>
+        <tr><td>IB NDR</td><td>0.3%</td><td>4.0%</td><td>8.8 ms</td><td>100.0%</td></tr>
+        <tr><td>100 GbE</td><td>1.2%</td><td>16.1%</td><td>9.0 ms</td><td>100.0%</td></tr>
+        <tr><td>25 GbE</td><td>8.1%</td><td>64.4%</td><td>11.6 ms</td><td>100.0%</td></tr>
+    </table>
+    </div>
+    <p>At the default load the hand-off is invisible on anything faster than 25 GbE. Push the 25 GbE case harder: the link saturates near 11.6 req/s (268.4 MB per prompt at 3.125 GB/s).</p>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Load</th><th>Link busy, uncompressed</th><th>Hand-off p99</th><th>TPOT p99</th><th>SLO met: none</th><th>FP8</th><th>freq-keep-k</th></tr>
+        <tr><td>8 req/s</td><td>64.4%</td><td>471.9 ms</td><td>11.6 ms</td><td>100.0%</td><td>100.0%</td><td>100.0%</td></tr>
+        <tr><td>10 req/s</td><td>79.0%</td><td>750.0 ms</td><td>14.1 ms</td><td>100.0%</td><td>100.0%</td><td>100.0%</td></tr>
+        <tr><td>12 req/s</td><td>90.6%</td><td>2,959.0 ms</td><td>26.5 ms</td><td>98.3%</td><td>100.0%</td><td>100.0%</td></tr>
+        <tr><td>14 req/s</td><td>94.0%</td><td>9,657.8 ms</td><td>77.2 ms</td><td>41.0%</td><td>100.0%</td><td>100.0%</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">Disaggregated_Inference_Sim, examples/results.md</a>, sections 14 and 15. TPOT includes the hand-off (DistServe's definition); TTFT does not.</p>
+    <ul>
+        <li><strong>The hand-off binds only on a slow link near saturation.</strong> At 14 req/s over 25 GbE, uncompressed hand-offs met the SLO for 41.0% of requests; FP8 and freq-keep-k (both 2&times;) restored 100.0%, with hand-off p99 down from 9,657.8 ms to 166.6 ms.</li>
+        <li><strong>Over NVLink, compression made no difference:</strong> TPOT p99 8.8 ms and SLO 100.0% with every preset.</li>
+        <li>What is handed off can matter more than the link: in section 14 a Hyena direct-decode cache (1,073.7 MB) saturates 25 GbE, while a distilled state (16.8 MB) is under 1% of end-to-end time on every link.</li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>Compressing the Hand-off</h2>
+    <p>Two families of KV compression, and how each fares against the published operation set.</p>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Quantisation</h4>
+            <ul>
+                <li><strong>KIVI:</strong> 2-bit KV, tuning-free, keys quantised per channel and values per token (<a href="https://arxiv.org/abs/2402.02750">arXiv:2402.02750</a>).</li>
+                <li><strong>KVQuant:</strong> 3-bit KV with under 0.1 perplexity loss (<a href="https://arxiv.org/abs/2401.18079">arXiv:2401.18079</a>).</li>
+                <li><strong>Needs:</strong> a block maximum (comparisons), a scale (multiply) and <em>rounding</em>. Rounding and comparison are not in the published set.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Transform domain</h4>
+            <ul>
+                <li><strong>FreqKV:</strong> a DCT along the token axis, keeping the low-frequency components; half by default, with light fine-tuning (<a href="https://arxiv.org/abs/2505.00570">arXiv:2505.00570</a>, ICLR 2026).</li>
+                <li><strong>Needs:</strong> a transform and a <em>fixed</em> gather of the kept band. No comparisons, no rounding.</li>
+                <li>The decode side must accept frequency-domain KV, or invert the transform.</li>
+            </ul>
+        </div>
+    </div>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Kernel</th><th>Transform / byte</th><th>Other / byte</th><th>In set</th><th>Fits high budget, transform charged</th><th>Fits low budget, transform free</th></tr>
+        <tr><td>1-D FFT, length 8, keep a fixed band</td><td>3.75</td><td>0.00</td><td>yes</td><td>yes</td><td>yes</td></tr>
+        <tr><td>1-D FFT, length 64, keep a fixed band</td><td>7.50</td><td>0.00</td><td>yes</td><td>no</td><td>yes</td></tr>
+        <tr><td>1-D FFT, length 1024, keep a fixed band</td><td>12.50</td><td>0.00</td><td>yes</td><td>no</td><td>yes</td></tr>
+        <tr><td>Requantise BF16 to FP8 (per-block scale)</td><td>0.00</td><td>1.00</td><td>no</td><td>yes</td><td>no</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a>, section 2. Budget on QSFP56: 0.40 (low) to 3.96 (high) operations per byte.</p>
+    <div class="callout">
+        <div class="callout-label">Verdict on the hand-off codec</div>
+        <p>Frequency keep-k is the codec that fits: built from FFT and a fixed gather, and it fits every budget <em>if the optics does the transform without charge</em>. FP8 would fit the arithmetic budget at the high end but needs rounding, which the module does not publish. In the simulator, FP8 at the GPU was as fast as FP8 in transit (both 166.6 ms hand-off p99 at 14 req/s): the GPU pass is short next to prefill, so in-transit compression saves GPU time, not latency. Whether a fixed band keeps enough of real KV is an accuracy question; FreqKV's result says yes for half, after fine-tuning.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>KV Tiering and Prefix Caching</h2>
+    <p>Production systems keep KV caches beyond GPU memory and fetch them back when a prefix is reused: a system prompt, a document, an earlier turn of a chat. Every fetch is a hand-off from storage instead of from a prefill pool.</p>
+    <div class="diagram-flow">
+        <span class="diagram-box">GPU HBM</span>
+        <span class="diagram-arrow">&harr;</span>
+        <span class="diagram-box">CPU DRAM</span>
+        <span class="diagram-arrow">&harr;</span>
+        <span class="diagram-box">local SSD</span>
+        <span class="diagram-arrow">&harr;</span>
+        <span class="diagram-box accent">shared KV pool over the network</span>
+    </div>
+    <ul>
+        <li><strong>Mooncake</strong> (Kimi's serving platform) is KV-cache-centric: it separates prefill and decode clusters and builds a disaggregated KV cache from the cluster's otherwise under-used CPU, DRAM and SSD. Its scheduler moves reusable KV to the prefill instance and streams new KV to decode in chunks or layers (<a href="https://arxiv.org/abs/2407.00079">arXiv:2407.00079</a>).</li>
+        <li><strong>LMCache</strong> pulls KV out of GPU memory for vLLM and SGLang, supporting both offload for prefix reuse and prefill-decode transfer, with an API for movement and compression across GPU, CPU, storage and network (<a href="https://arxiv.org/abs/2510.09665">arXiv:2510.09665</a>). The same group's CacheGen encodes KV into a compact bitstream for network fetch (<a href="https://arxiv.org/abs/2310.07240">arXiv:2310.07240</a>).</li>
+        <li><strong>Why reuse pays:</strong> in Disaggregated_Inference_Sim's prefix-caching model (Mistral-7B, one A100), a 2,048-token shared system prompt gave a 79.9% hit rate and cut TTFT p50 from 241.8 ms to 45.2 ms (section 21). That cache sits in GPU memory; a tiered cache adds the fetch.</li>
+    </ul>
+    <p><strong>Sizes are those of slide 02.</strong> Fetching a 32,768-token Llama-3-70B prefix (10,737.4 MB) over 100 GbE takes 859.01 ms, against 23.87 ms over NVLink 4 (results.md section 4). Over a network, the fetch is bandwidth-bound and sits in front of the first token.</p>
+    <div class="callout">
+        <div class="callout-label">Compression in transit, both ways</div>
+        <p>A tier is a better fit than the hand-off for an in-link codec: data is compressed once on the way out and decompressed on every fetch, at the network edge of a storage pool where no GPU is available to do it. The same frequency keep-k codec applies, and the same caveats: a fixed band, an accuracy check, and a free transform. The authors of LMCache and Mooncake report large throughput gains from tiering, which says the flow matters; neither says an in-link codec would help.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Fetch Only What Matters: Query-Aware KV Selection</h2>
+    <p>Moving fewer bytes beats compressing them. For a long context, a decode step's attention is dominated by a few tokens, and which ones depends on the query.</p>
+    <div class="diagram-flow">
+        <span class="diagram-box">query q</span>
+        <span class="diagram-arrow">&rarr;</span>
+        <span class="diagram-box accent">score each page summary (MAC)</span>
+        <span class="diagram-arrow">&rarr;</span>
+        <span class="diagram-box dim">choose the top pages (comparisons)</span>
+        <span class="diagram-arrow">&rarr;</span>
+        <span class="diagram-box">fetch only those pages</span>
+    </div>
+    <ul>
+        <li><strong>Quest</strong> keeps, for each KV page, the element-wise minimum and maximum of its keys, uses the query to estimate an upper bound on each page's attention score, and loads only the top-K pages. The authors report up to 7.03&times; self-attention speed-up and 2.23&times; lower inference latency with negligible accuracy loss on long-dependency tasks (<a href="https://arxiv.org/abs/2406.10774">arXiv:2406.10774</a>, ICML 2024). Quest's bound takes a per-channel maximum, which is itself a comparison; a plain dot product against a representative key is pure MAC.</li>
+        <li><strong>The arithmetic fits the budget's high end.</strong> Scoring a key against the query (head dimension 128) is a dot product: 2 FLOPs per BF16 value, <strong>1.00 operation per byte</strong>, built from MAC. It fits the high budget (3.96) but not the low (0.40) (results.md, section 2).</li>
+        <li><strong>Choosing the top pages needs comparisons</strong>, outside the published set. The module could score in the data path and hand the scores to a host that ranks them; the ranking is over one number per page, so it is cheap.</li>
+    </ul>
+    <div class="callout">
+        <div class="callout-label">Being explored optically</div>
+        <p>PRISM (Park and Park, <a href="https://arxiv.org/html/2603.21576v2">arXiv:2603.21576</a>; other authors, not Optalysys) proposes a thin-film lithium niobate photonic similarity engine for KV block selection, arguing that ranking needs only 4 to 6 bits. The authors report 100% needle-in-a-haystack accuracy from 4K to 64K tokens on Qwen2.5-7B with simulated hardware impairments, and 16&times; less KV traffic at 64K. These are the authors' claims, not yet reproduced. It shows the scoring step is a natural candidate for analogue optics; its value in transit depends on the KV living somewhere remote.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Ring Attention and Context Parallelism</h2>
+    <p>A prompt too long for one GPU is split across devices. Each device keeps its query block and passes its KV block to the next device in a ring, computing blockwise attention against each block as it arrives, until every query block has seen every KV block.</p>
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 520 210" width="520" height="210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Four devices in a ring, each holding a query block and passing a KV block to the next">
+            <style>
+                .rb { fill: #2b2520; stroke: #3a322b; stroke-width: 1.2; }
+                .rt { fill: #efe8dc; font-family: 'Geist Mono', monospace; font-size: 12px; }
+                .rd { fill: #a2978b; font-family: 'Geist Mono', monospace; font-size: 10px; }
+                .ra { stroke: #6cb6c4; stroke-width: 2; fill: none; }
+                .rm { fill: #6cb6c4; font-family: 'Geist Mono', monospace; font-size: 10.5px; }
+            </style>
+            <defs><marker id="rh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6cb6c4"/></marker></defs>
+            <rect x="40" y="20" width="150" height="56" rx="8" class="rb"/><text x="55" y="43" class="rt">GPU 0</text><text x="55" y="62" class="rd">Q0, holds KV(k)</text>
+            <rect x="330" y="20" width="150" height="56" rx="8" class="rb"/><text x="345" y="43" class="rt">GPU 1</text><text x="345" y="62" class="rd">Q1, holds KV(k+1)</text>
+            <rect x="330" y="134" width="150" height="56" rx="8" class="rb"/><text x="345" y="157" class="rt">GPU 2</text><text x="345" y="176" class="rd">Q2, holds KV(k+2)</text>
+            <rect x="40" y="134" width="150" height="56" rx="8" class="rb"/><text x="55" y="157" class="rt">GPU 3</text><text x="55" y="176" class="rd">Q3, holds KV(k+3)</text>
+            <line x1="192" y1="48" x2="326" y2="48" class="ra" marker-end="url(#rh)"/>
+            <line x1="405" y1="78" x2="405" y2="130" class="ra" marker-end="url(#rh)"/>
+            <line x1="328" y1="162" x2="194" y2="162" class="ra" marker-end="url(#rh)"/>
+            <line x1="115" y1="132" x2="115" y2="80" class="ra" marker-end="url(#rh)"/>
+            <text x="205" y="105" class="rm">KV blocks rotate, every layer;</text>
+            <text x="205" y="120" class="rm">transfer overlaps compute</text>
+        </svg>
+    </div>
+    <ul>
+        <li><strong>Ring Attention</strong> (Liu, Zaharia and Abbeel, <a href="https://arxiv.org/abs/2310.01889">arXiv:2310.01889</a>, ICLR 2024) overlaps the KV block transfers with blockwise attention, so sequence length scales with device count, and attention stays exact.</li>
+        <li><strong>The traffic is KV, again:</strong> every layer of a long prefill moves each device's KV block round the whole ring. The per-token bytes are those of slide 02.</li>
+        <li><strong>Compression fits the operation set:</strong> an FFT along the tokens of each block and a fixed band is the same kernel as slide 04.</li>
+        <li><strong>But it breaks the point of the method.</strong> Ring attention's selling point is exact attention; a lossy codec on every block, every layer, accumulates error through the prefill. And the design already hides the transfer behind compute when the link is fast enough, so compression pays only when the ring's link is slower than the attention block it overlaps.</li>
+    </ul>
+    <p><strong>Verdict: weak.</strong> Technically in the set; the error budget and the overlap leave little to gain.</p>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>MoE All-to-All and Tensor-Parallel All-Reduce</h2>
+    <p>Two collectives run inside a pool on every layer. They are frequent and on the critical path, but they carry activations, not cached state.</p>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>MoE expert-parallel all-to-all</h4>
+            <ul>
+                <li>Each token's activation is dispatched to the GPUs holding its chosen experts and the results combined back (GShard, <a href="https://arxiv.org/abs/2006.16668">arXiv:2006.16668</a>).</li>
+                <li>In Disaggregated_Inference_Sim (Mixtral-8x7B on 2 H100s, section 24), EP2 prefill of 4 &times; 2,048 tokens takes 211.5 ms, of which <strong>7.1%</strong> is the link; decode at batch 32, 3.4%.</li>
+                <li>Practice already compresses dispatch: DeepSeek-V3 quantises activations to FP8 before dispatch (<a href="https://arxiv.org/abs/2412.19437">arXiv:2412.19437</a>). That is rounding, outside the set.</li>
+                <li>Activations feed the expert's matmul directly; a frequency band along tokens has no reason to hold their energy.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Tensor-parallel all-reduce</h4>
+            <ul>
+                <li>Partial sums are added across GPUs after attention and after the MLP.</li>
+                <li>In the same simulator (Llama-3-70B, decode at batch 1), the all-reduce is <strong>26.2%</strong> of an 18.3 ms step at TP4 and <strong>61.5%</strong> of 18.2 ms at TP8 (section 24; first-order, illustrative).</li>
+                <li>Summing streams costs 0.50 operations per byte and is in the set, but needs both streams at one point: a switch, not a pluggable (results.md, section 2).</li>
+                <li>NVSwitch already reduces in the network (NVLink SHARP), so this place is taken.</li>
+            </ul>
+        </div>
+    </div>
+    <p><strong>Verdict: weak to uncertain.</strong> MoE dispatch is a modest share of step time in the simulator, and activations tolerate little noise without the rounding-based FP8 recipe. The all-reduce is a strong in-network candidate, but for a switch, where it already exists.</p>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Weight Streaming</h2>
+    <p>Weights move when a model is loaded, swapped for another, offloaded layer by layer to fit memory, or when a LoRA adapter is paged in for a request.</p>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Model</th><th>BF16 weights (GB)</th><th>Load over PCIe Gen5 x16 (s)</th></tr>
+        <tr><td>Llama-3-8B</td><td>16.06</td><td>0.25</td></tr>
+        <tr><td>Llama-3-70B</td><td>141.10</td><td>2.20</td></tr>
+    </table>
+    </div>
+    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a>, section 4.</p>
+    <ul>
+        <li><strong>It happens at cold start, not per token.</strong> A serving fleet loads a model once and serves it for hours; the load is amortised over every request that follows.</li>
+        <li><strong>Adapters are small and frequent.</strong> S-LoRA serves thousands of adapters by paging them between host and GPU memory (<a href="https://arxiv.org/abs/2311.03285">arXiv:2311.03285</a>). Small transfers are latency-bound, not bandwidth-bound.</li>
+        <li><strong>Weights need high accuracy.</strong> Weight quantisation (FP8, INT4) is applied once, offline, with calibration; it is not something to redo lossily on every load. A transform codec on the wire would have to be lossless, and a fixed frequency band is not.</li>
+        <li><strong>Offload during decode</strong> (streaming layers from host memory each step) is the one case where weights move per token, and there the cure is to keep the weights resident, not to compress them in flight.</li>
+    </ul>
+    <p><strong>Verdict: weak.</strong></p>
+</section>
+
+<section class="slide" id="slide-10">
+    <div class="slide-number">10</div>
+    <h2>Confidential AI: FHE and Encrypted Links</h2>
+    <p>Confidential inference is the one place the module's operations are already proven, because they were built for it.</p>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>FHE inference</h4>
+            <ul>
+                <li>Under fully homomorphic encryption the server computes on ciphertexts it cannot read. CKKS handles approximate real arithmetic; its cost is dominated by NTTs and modular arithmetic, and bootstrapping refreshes the noise budget.</li>
+                <li>Optalysys's own demonstration is <strong>CKKS bootstrapping</strong> on the QSFP56 module (Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>). Exact modular arithmetic comes from an analogue transform by digit decomposition, as the <a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/">FHE Accelerator Simulators</a> series explains.</li>
+                <li>FHE inference is compute-bound and orders of magnitude slower than plaintext; it is a niche, not a fleet workload.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Encrypted traffic</h4>
+            <ul>
+                <li><strong>Bulk link encryption</strong> (MACsec, IPsec, TLS) typically uses AES, a block cipher of table look-ups and XORs over GF(2): not FFT, NTT or MAC.</li>
+                <li><strong>Post-quantum key exchange</strong>, ML-KEM (<a href="https://csrc.nist.gov/pubs/fips/203/final">FIPS 203</a>, August 2024), multiplies polynomials of degree 256 modulo 3,329 using NTTs: in the set.</li>
+                <li>But a handshake is tiny: an ML-KEM-768 encapsulation key is 1,184 bytes and a ciphertext 1,088 (FIPS 203). It runs once per session, then AES carries the data.</li>
+            </ul>
+        </div>
+    </div>
+    <p><strong>Verdict: proven technically, small payoff in throughput.</strong> The module fits FHE by design, and ML-KEM's NTT fits too, but neither is a high-volume flow in an inference fleet. Bulk encryption, the high-volume part, uses an operation the module does not offer.</p>
+</section>
+
+<section class="slide" id="slide-11">
+    <div class="slide-number">11</div>
+    <h2>The Candidate Table</h2>
+    <p>Every inference flow against the five tests of <a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">deck 01</a>: bottleneck (link-bound), operations (fits published ops), budget (work in transit), precision (noise tolerance) and placement (a pluggable sees one flow, a switch many).</p>
+    <div class="table-wrap">
+    <table>
+        <tr><th>Candidate</th><th>Traffic</th><th>Work in transit</th><th>Fits published ops</th><th>Link-bound</th><th>Noise tolerance</th><th>Verdict</th></tr>
+        <tr><td><strong>KV tier fetch / offload</strong></td><td>KV to and from CPU/SSD pools</td><td>FFT + fixed band, both ways</td><td>yes</td><td>often, over a network</td><td>moderate (2- to 3-bit KV tolerated; FreqKV half)</td><td><strong>best inference candidate</strong></td></tr>
+        <tr><td><strong>KV hand-off</strong></td><td>KV, prefill to decode</td><td>FFT + fixed band; FP8</td><td>keep-k yes; FP8 no</td><td>only on slow links near saturation</td><td>moderate</td><td>plausible, narrow</td></tr>
+        <tr><td><strong>Query-aware selection</strong></td><td>KV page summaries</td><td>score pages (MAC, 1.00 / byte)</td><td>scoring yes; top-k no</td><td>when KV is remote</td><td>high (ranking only)</td><td>promising, needs host ranking</td></tr>
+        <tr><td>Ring attention</td><td>KV blocks round a ring</td><td>FFT + fixed band</td><td>yes</td><td>rarely; overlapped</td><td>low (exact attention)</td><td>weak</td></tr>
+        <tr><td>MoE all-to-all</td><td>token activations</td><td>FP8 dispatch</td><td>no (rounding)</td><td>7.1% of a prefill step (sim)</td><td>low to moderate</td><td>weak / uncertain</td></tr>
+        <tr><td>TP all-reduce</td><td>partial sums</td><td>add, 0.50 / byte</td><td>yes</td><td>yes at TP8 decode (61.5%, sim)</td><td>exact sum</td><td>switch, not pluggable; exists</td></tr>
+        <tr><td>Weight streaming</td><td>weights, adapters</td><td>lossless only</td><td>no useful kernel</td><td>cold start only</td><td>none</td><td>weak</td></tr>
+        <tr><td>FHE inference</td><td>ciphertexts</td><td>NTT, modular arithmetic</td><td>yes (demonstrated)</td><td>no, compute-bound</td><td>exact by decomposition</td><td>proven, niche</td></tr>
+        <tr><td>PQ key exchange</td><td>ML-KEM handshakes</td><td>NTT</td><td>yes</td><td>no, kilobytes</td><td>exact</td><td>proven, negligible volume</td></tr>
+    </table>
+    </div>
+    <div class="callout">
+        <div class="callout-label">The strongest candidate is in training</div>
+        <p>Over a 100 GbE cross-data-centre link, one Llama-3-70B BF16 update takes 11.3 s uncompressed (results.md, section 3), against 53.71 ms for a 2,048-token Llama-3-70B hand-off on the same link (section 4). <a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">Deck 02</a> covers cross-data-centre gradient sync, the place compression in transit would act on the most bytes.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-12">
+    <div class="slide-number">12</div>
+    <h2>What a Simulator Needs to Answer This</h2>
+    <p>Disaggregated_Inference_Sim already has an in-transit stage on the KV hand-off: no GPU time, 1 pJ per input bit, 1 &micro;s added and 1.6 operations per line byte, all illustrative (results.md section 15). Answering the questions of slide 11 needs that stage generalised from &ldquo;a codec on the hand-off&rdquo; to <strong>a kernel on a link</strong>.</p>
+    <div class="code-block">
+        <div class="code-header">sketch: a kernel declared on a link (illustrative, not an existing API)</div>
+<pre><code><span class="type">LinkKernel</span>(
+    name=<span class="str">"freq-keep-half"</span>,
+    ops_per_byte=<span class="num">0.0</span>,          <span class="cm"># arithmetic besides the transform</span>
+    op_types={<span class="str">"fft"</span>, <span class="str">"gather"</span>},  <span class="cm"># checked against {fft, ntt, modular, mac}</span>
+    transform_charged=<span class="kw">False</span>,  <span class="cm"># the unknown that decides the verdict</span>
+    precision_bits=<span class="num">8</span>,           <span class="cm"># what the analogue path delivers</span>
+    ratio=<span class="num">2.0</span>,
+    placement=<span class="str">"pluggable"</span>,       <span class="cm"># or "switch": sees one stream, or many</span>
+)</code></pre>
+    </div>
+    <ul>
+        <li><strong>Operations per byte and operation types</strong>, checked against the module's budget and published set. A kernel that needs a comparison or rounding is rejected or sent to the host.</li>
+        <li><strong>Precision need</strong>, and an <strong>accuracy check</strong> for lossy codecs: run the codec on real KV or activations and measure perplexity or task accuracy. The simulator does not model accuracy today.</li>
+        <li><strong>Placement:</strong> a pluggable sees one point-to-point stream; a switch sees many and can sum them.</li>
+        <li><strong>Request traces</strong> with real prompt-length and prefix-reuse distributions, because the hand-off and the tier fetch bind only at high load on slow links.</li>
+        <li><strong>All flows on one clock:</strong> hand-off, tier fetch, MoE all-to-all and all-reduce, so a codec on one link is judged by end-to-end SLO, not by its own transfer time.</li>
+        <li><strong>An all-GPU baseline at equal power and cost:</strong> the same compression on the GPU, or simply a faster link. In section 15 the GPU matched the in-transit stage on latency.</li>
+    </ul>
+    <p style="font-size:0.85rem;">Simulator: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim">Disaggregated_Inference_Sim</a>; recorded results: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">examples/results.md</a>.</p>
+</section>
+
+<section class="slide" id="slide-13">
+    <div class="slide-number">13</div>
+    <h2>What to Take Away</h2>
+    <ul>
+        <li><strong>Inference moves KV, mostly.</strong> 131,072 bytes per token for Llama-3-8B and 327,680 for Llama-3-70B: 268.4 MB for a 2,048-token 8B prompt, 10,737.4 MB for a 32,768-token 70B prompt.</li>
+        <li><strong>The hand-off binds only on slow links near saturation.</strong> In the simulator, at 14 req/s over 25 GbE, 41.0% of requests met the SLO uncompressed and 100.0% with FP8 or freq-keep-k; over NVLink compression changed nothing. And the GPU compressed as fast as the link did.</li>
+        <li><strong>Frequency keep-k is the codec that fits the published set</strong> (FFT and a fixed gather). Quantisation needs rounding. Keep-k fits the budget only if the optical transform is free.</li>
+        <li><strong>KV tiering is the best inference candidate:</strong> a network-bound flow, compressed once and fetched many times, at a place with no GPU.</li>
+        <li><strong>Query-aware scoring is a MAC at 1.00 operation per byte</strong>, which fits the high end of the budget; choosing the top pages needs comparisons. PRISM shows others are exploring the scoring optically.</li>
+        <li><strong>Ring attention, MoE dispatch and weight streaming are weak</strong>: exact attention, noise-sensitive activations, cold-start-only weights. Confidential AI is proven but small in volume.</li>
+        <li><strong>The biggest bytes are in training.</strong> <a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">Deck 02</a>: cross-data-centre gradient sync.</li>
+    </ul>
+</section>
+
+<!-- ════════════════════════════════════ Footer ════════════════════════════════════ -->
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit">Compute in Transit series</a> &middot; <a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary">glossary: every concept and where it is explained</a> &middot; numbers: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a> and <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">Disaggregated_Inference_Sim results</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">&larr; 02 Data Movement in LLM Training</a> &middot; <a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">01 Compute in Transit: the budget and the five tests</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">Sister series: <a href="https://brendanjameslynskey.github.io/LLM_Hub_Fourier_Optics_Inference/">Fourier Optics for Inference</a> &middot; <a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/">LLM Inference Simulators</a> &middot; <a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/">FHE Accelerator Simulators</a> &middot; <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/">Simulation Engineering Toolkit</a></p>
+</footer>
+
+<script>
+    // Smooth scroll for TOC links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    // Subtle fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+</script>
+
+</body>
+</html>
