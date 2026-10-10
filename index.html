@@ -847,7 +847,7 @@
     </ul>
     <div class="callout">
         <div class="callout-label">Where this deck sits</div>
-        <p><a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">Deck 01</a> sets the budget and the five tests: a QSFP56 compute-in-transit module offers <strong>0.40 to 3.96 operations per byte</strong> at line rate, and the published operations are FFT, NTT, MAC, and modular and floating-point arithmetic (Optalysys, Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>, a QSFP56 pluggable with an integrated optical Fourier transform device, evaluated only on FHE CKKS bootstrapping). Comparisons, rounding and top-k are not in the published set. <a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">Deck 02</a> applied the tests to training. This deck applies them to inference.</p>
+        <p><a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">Deck 01</a> sets the budget and the five tests: a QSFP56 compute-in-transit module offers <strong>0.40 to 3.96 operations per byte</strong> at line rate, and the published operations are FFT, NTT, MAC, and modular and floating-point arithmetic (Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>, a QSFP56 pluggable with an integrated optical Fourier transform device, evaluated only on FHE CKKS bootstrapping). Comparisons, rounding and top-k are not in the published set. <a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">Deck 02</a> applied the tests to training. This deck applies them to inference.</p>
     </div>
     <div class="concepts">
         <p><strong>Concepts used here, and where they are explained.</strong> Each is defined, with links, in the <a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary">series glossary</a>.</p>
@@ -1100,7 +1100,7 @@
     </ul>
     <div class="callout">
         <div class="callout-label">Being explored optically</div>
-        <p>PRISM (Park and Park, <a href="https://arxiv.org/html/2603.21576v2">arXiv:2603.21576</a>; other authors, not Optalysys) proposes a thin-film lithium niobate photonic similarity engine for KV block selection, arguing that ranking needs only 4 to 6 bits. The authors report 100% needle-in-a-haystack accuracy from 4K to 64K tokens on Qwen2.5-7B with simulated hardware impairments, and 16&times; less KV traffic at 64K. These are the authors' claims, not yet reproduced. It shows the scoring step is a natural candidate for analogue optics; its value in transit depends on the KV living somewhere remote.</p>
+        <p>PRISM (Park and Park, <a href="https://arxiv.org/html/2603.21576v2">arXiv:2603.21576</a>; other authors, not the module&rsquo;s developer) proposes a thin-film lithium niobate photonic similarity engine for KV block selection, arguing that ranking needs only 4 to 6 bits. The authors report 100% needle-in-a-haystack accuracy from 4K to 64K tokens on Qwen2.5-7B with simulated hardware impairments, and 16&times; less KV traffic at 64K. These are the authors' claims, not yet reproduced. It shows the scoring step is a natural candidate for analogue optics; its value in transit depends on the KV living somewhere remote.</p>
     </div>
 </section>
 
@@ -1196,7 +1196,7 @@
             <h4>FHE inference</h4>
             <ul>
                 <li>Under fully homomorphic encryption the server computes on ciphertexts it cannot read. CKKS handles approximate real arithmetic; its cost is dominated by NTTs and modular arithmetic, and bootstrapping refreshes the noise budget.</li>
-                <li>Optalysys's own demonstration is <strong>CKKS bootstrapping</strong> on the QSFP56 module (Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>). Exact modular arithmetic comes from an analogue transform by digit decomposition, as the <a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/">FHE Accelerator Simulators</a> series explains.</li>
+                <li>The module&rsquo;s own demonstration is <strong>CKKS bootstrapping</strong> on the QSFP56 module (Kundu et al., <a href="https://arxiv.org/abs/2608.21536">arXiv:2608.21536</a>). Exact modular arithmetic comes from an analogue transform by digit decomposition, as the <a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/">FHE Accelerator Simulators</a> series explains.</li>
                 <li>FHE inference is compute-bound and orders of magnitude slower than plaintext; it is a niche, not a fleet workload.</li>
             </ul>
         </div>
