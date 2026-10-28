@@ -1060,7 +1060,7 @@ html[data-concept=optbench] .callout,html[data-concept=optbench] .diagram-grid,h
 <section class="slide" id="slide-03">
     <div class="slide-number">03</div>
     <h2>The KV Hand-off, and When It Binds</h2>
-    <p>A single transfer time says little; what matters is whether hand-offs queue. <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim">Disaggregated_Inference_Sim</a> runs a request trace through a prefill pool, a link and a decode pool (Llama-3-8B shape, one H100 per instance, 2,048-token prompts: a 268.4 MB GQA KV hand-off). Its coefficients are illustrative; read these as a simulator's results, not measurements.</p>
+    <p>A single transfer time says little; what matters is whether hand-offs queue. <a href="https://github.com/BrendanJamesLynskey/Optical_Serving_Sim">Optical_Serving_Sim</a> runs a request trace through a prefill pool, a link and a decode pool (Llama-3-8B shape, one H100 per instance, 2,048-token prompts: a 268.4 MB GQA KV hand-off). Its coefficients are illustrative; read these as a simulator's results, not measurements.</p>
     <div class="table-wrap">
     <table>
         <tr><th>Link</th><th>KV wait + transfer share of E2E</th><th>Link busy</th><th>TPOT p99</th><th>SLO met</th></tr>
@@ -1080,7 +1080,7 @@ html[data-concept=optbench] .callout,html[data-concept=optbench] .diagram-grid,h
         <tr><td>14 req/s</td><td>94.0%</td><td>9,657.8 ms</td><td>77.2 ms</td><td>41.0%</td><td>100.0%</td><td>100.0%</td></tr>
     </table>
     </div>
-    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">Disaggregated_Inference_Sim, examples/results.md</a>, sections 14 and 15. TPOT includes the hand-off, following DistServe's split (TTFT is the prefill phase; the rest counts towards TPOT); TTFT does not.</p>
+    <p style="font-size:0.85rem;">Source: <a href="https://github.com/BrendanJamesLynskey/Optical_Serving_Sim/blob/main/examples/results.md">Optical_Serving_Sim, examples/results.md</a>, sections 14 and 15. TPOT includes the hand-off, following DistServe's split (TTFT is the prefill phase; the rest counts towards TPOT); TTFT does not.</p>
     <ul>
         <li><strong>The hand-off binds only on a slow link near saturation.</strong> At 14 req/s over 25 GbE, uncompressed hand-offs met the SLO for 41.0% of requests; FP8 and freq-keep-k (both 2&times;) restored 100.0%, with hand-off p99 down from 9,657.8 ms to 166.6 ms.</li>
         <li><strong>Over NVLink, compression made no difference:</strong> TPOT p99 8.8 ms and SLO 100.0% with every preset.</li>
@@ -1310,7 +1310,7 @@ html[data-concept=optbench] .callout,html[data-concept=optbench] .diagram-grid,h
 <section class="slide" id="slide-12">
     <div class="slide-number">12</div>
     <h2>What a Simulator Needs to Answer This</h2>
-    <p>Disaggregated_Inference_Sim already has an in-transit stage on the KV hand-off: no GPU time, 1 pJ per input bit, 1 &micro;s added and 1.6 operations per line byte, all illustrative (results.md section 15). Answering the questions of slide 11 needs that stage generalised from &ldquo;a codec on the hand-off&rdquo; to <strong>a kernel on a link</strong>.</p>
+    <p>Optical_Serving_Sim already has an in-transit stage on the KV hand-off: no GPU time, 1 pJ per input bit, 1 &micro;s added and 1.6 operations per line byte, all illustrative (results.md section 15). Answering the questions of slide 11 needs that stage generalised from &ldquo;a codec on the hand-off&rdquo; to <strong>a kernel on a link</strong>.</p>
     <div class="code-block">
         <div class="code-header">sketch: a kernel declared on a link (illustrative, not an existing API)</div>
 <pre><code><span class="type">LinkKernel</span>(
@@ -1331,7 +1331,7 @@ html[data-concept=optbench] .callout,html[data-concept=optbench] .diagram-grid,h
         <li><strong>All flows on one clock:</strong> hand-off, tier fetch, MoE all-to-all and all-reduce, so a codec on one link is judged by end-to-end SLO, not by its own transfer time.</li>
         <li><strong>An all-GPU baseline at equal power and cost:</strong> the same compression on the GPU, or simply a faster link. In section 15 the GPU matched the in-transit stage on latency.</li>
     </ul>
-    <p style="font-size:0.85rem;">Simulator: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim">Disaggregated_Inference_Sim</a>; recorded results: <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">examples/results.md</a>.</p>
+    <p style="font-size:0.85rem;">Simulator: <a href="https://github.com/BrendanJamesLynskey/Optical_Serving_Sim">Optical_Serving_Sim</a>; recorded results: <a href="https://github.com/BrendanJamesLynskey/Optical_Serving_Sim/blob/main/examples/results.md">examples/results.md</a>.</p>
 </section>
 
 <section class="slide" id="slide-13">
@@ -1350,7 +1350,7 @@ html[data-concept=optbench] .callout,html[data-concept=optbench] .diagram-grid,h
 
 <!-- ════════════════════════════════════ Footer ════════════════════════════════════ -->
 <footer class="footer">
-    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit">Compute in Transit series</a> &middot; <a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary">glossary: every concept and where it is explained</a> &middot; numbers: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a> and <a href="https://github.com/BrendanJamesLynskey/Disaggregated_Inference_Sim/blob/main/examples/results.md">Disaggregated_Inference_Sim results</a></p>
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit">Compute in Transit series</a> &middot; <a href="https://brendanjameslynskey.github.io/LLM_Hub_Compute_in_Transit/#glossary">glossary: every concept and where it is explained</a> &middot; numbers: <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Compute_in_Transit/blob/main/analysis/results.md">analysis/results.md</a> and <a href="https://github.com/BrendanJamesLynskey/Optical_Serving_Sim/blob/main/examples/results.md">Optical_Serving_Sim results</a></p>
     <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://brendanjameslynskey.github.io/CiT_02_Data_Movement_in_LLM_Training/">&larr; 02 Data Movement in LLM Training</a> &middot; <a href="https://brendanjameslynskey.github.io/CiT_01_Compute_in_Transit/">01 Compute in Transit: the budget and the five tests</a></p>
     <p style="margin-top: 0.5rem; font-size: 0.8rem;">Sister series: <a href="https://brendanjameslynskey.github.io/LLM_Hub_Fourier_Optics_Inference/">Fourier Optics for Inference</a> &middot; <a href="https://brendanjameslynskey.github.io/LLM_Hub_Inference_Simulators/">LLM Inference Simulators</a> &middot; <a href="https://brendanjameslynskey.github.io/FHE_Hub_Accelerator_Simulators/">FHE Accelerator Simulators</a> &middot; <a href="https://brendanjameslynskey.github.io/SimEng_Hub_Toolkit/">Simulation Engineering Toolkit</a></p>
 </footer>
